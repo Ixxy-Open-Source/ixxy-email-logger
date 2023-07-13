@@ -22,6 +22,12 @@ except ImportError:
             return self.code
 
 
+try:
+    from dal_admin_filters import AutocompleteFilter
+except ImportError:
+    AutocompleteFilter = None
+
+
 from .models import EmailLog
 
 html_script = """
@@ -64,12 +70,53 @@ class EmailLogAdminForm(forms.ModelForm):
         }
 
 
-class EmailLogAdmin(LongListFilterMixin, admin.ModelAdmin):
+if AutocompleteFilter:
+    
+    class SubjectFilter(AutocompleteFilter):
+        """
+        # Add to installed apps, next to dal_select2
+        'dal_admin_filters',
+        
+        # Update project urls.py
+        from email_logger.autocomplete_views import EmailSubjectAutocomplete
+        
+        re_path(
+            r"^email-subject-autocomplete/$",
+            EmailSubjectAutocomplete.as_view(),
+            name="email-subject-autocomplete",
+        ),
+        
+        # update requrirements.txt
+        dal_admin_filters==1.1.0
+        
+        """
+        title = 'Subject'
+        field_name = 'subject'
+        parameter_name = 'subject'
+        autocomplete_url = 'email-subject-autocomplete'
+    
+        def get_queryset_for_field(self, model, name):
+            return EmailLog.objects.get_queryset()
+    
+        def get_widget(self, request):
+            from dal import autocomplete
+            widget = autocomplete.Select2(
+                url=self.get_autocomplete_url(request),
+                forward=self.get_forwards(),
+            )
+            return widget
+else:
+    SubjectFilter = 'subject'
+
+
+# AutocompleteFilter
+# admin.ModelAdmin
+class EmailLogAdmin(admin.ModelAdmin):
     
     form = EmailLogAdminForm
     name = 'Tools and Settings'
     list_display = ('label', 'subject', 'sender', 'recipients', 'created', 'success')
-    list_filter = ('label', 'subject', 'sender', 'recipients', 'created', 'success')
+    list_filter = ('label', SubjectFilter, 'sender', 'recipients', 'created', 'success')
     search_fields = ('label', 'sender', 'recipients', 'subject', 'text', 'html')
     
     def has_add_permission(self, request):
